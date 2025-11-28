@@ -361,10 +361,16 @@ sub authenticate {
     &radiusd::radlog( Info, "Config File $CONFIG_FILE ".$Config->{FSTAT} );
 
     # we inherrit the defaults
-    my $URL     = $Config->{URL};
-    my $REALM   = $Config->{REALM};
-    my $RESCONF = $Config->{RESCONF};
-    my $SSL_CA_PATH = $Config->{SSL_CA_PATH};
+    my $URL             = $Config->{URL};
+    my $REALM           = $Config->{REALM};
+    my $RESCONF         = $Config->{RESCONF};
+    my $DEBUG           = $Config->{DEBUG};
+    my $SPLIT_NULL_BYTE = $Config->{SPLIT_NULL_BYTE};
+    my $ADD_EMPTY_PASS  = $Config->{ADD_EMPTY_PASS};
+    my $SSL_CHECK       = $Config->{SSL_CHECK};
+    my $SSL_CA_PATH     = $Config->{SSL_CA_PATH};
+    my $TIMEOUT         = $Config->{TIMEOUT};
+    my $CLIENTATTRIBUTE = $Config->{CLIENTATTRIBUTE};
 
     my $debug   = false;
     if ( $Config->{Debug} =~ /true/i ) {
@@ -390,12 +396,46 @@ sub authenticate {
         &radiusd::radlog( Info, "Looking for config for auth-type $auth_type");
         if ( ( $cfg_file->val( $auth_type, "URL") )) {
             $URL = $cfg_file->val( $auth_type, "URL" );
+            &radiusd::radlog(Info, "Changing URL to ". $URL ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "REALM") )) {
             $REALM = $cfg_file->val( $auth_type, "REALM" );
+            &radiusd::radlog(Info, "Changing REALM to ". $REALM ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "RESCONF") )) {
             $RESCONF = $cfg_file->val( $auth_type, "RESCONF" );
+            &radiusd::radlog(Info, "Changing RESCONF to ". $RESCONF ." based on auth-type: ". $auth_type);
+        }
+
+        if ( ( $cfg_file->val( $auth_type, "DEBUG") )) {
+            $debug = $cfg_file->val( $auth_type, "DEBUG" );
+            &radiusd::radlog(Info, "Changing DEBUG to ". $debug ." based on auth-type: ". $auth_type);
+        }
+        if ( ( $cfg_file->val( $auth_type, "SPLIT_NULL_BYTE") )) {
+            $Config->{SPLIT_NULL_BYTE} = $cfg_file->val( $auth_type, "SPLIT_NULL_BYTE" );
+            &radiusd::radlog(Info, "Changing SPLIT_NULL_BYTE to ". $Config->{SPLIT_NULL_BYTE} ." based on auth-type: ". $auth_type);
+        }
+        if ( ( $cfg_file->val( $auth_type, "ADD_EMPTY_PASS") )) {
+            $Config->{ADD_EMPTY_PASS} = $cfg_file->val( $auth_type, "ADD_EMPTY_PASS" );
+            &radiusd::radlog(Info, "Changing ADD_EMPTY_PASS to ". $Config->{ADD_EMPTY_PASS} ." based on auth-type: ". $auth_type);
+        }
+        if ( ( $cfg_file->val( $auth_type, "SSL_CHECK") )) {
+            $check_ssl = $cfg_file->val( $auth_type, "SSL_CHECK" );
+            &radiusd::radlog(Info, "Changing SSL_CHECK to ". $check_ssl ." based on auth-type: ". $auth_type);
+        }
+        if ( ( $cfg_file->val( $auth_type, "SSL_CA_PATH") )) {
+            $Config->{SSL_CA_PATH} = $cfg_file->val( $auth_type, "SSL_CA_PATH" );
+            &radiusd::radlog(Info, "Changing SSL_CA_PATH to ". $Config->{SSL_CA_PATH} ." based on auth-type: ". $auth_type);
+        }
+        if ( ( $cfg_file->val( $auth_type, "TIMEOUT") )) {
+            $timeout = $cfg_file->val( $auth_type, "TIMEOUT" );
+            &radiusd::radlog(Info, "Changing TIMEOUT to ". $timeout ." based on auth-type: ". $auth_type);
+        }
+
+
+        if ( ( $cfg_file->val( $auth_type, "CLIENTATTRIBUTE") )) {
+            $Config->{CLIENTATTRIBUTE} = $cfg_file->val( $auth_type, "CLIENTATTRIBUTE" );
+            &radiusd::radlog(Info, "Changing CLIENTATTRIBUTE to ". $Config->{CLIENTATTRIBUTE} ." based on auth-type: ". $auth_type);
         }
     }
     catch {
