@@ -58,6 +58,7 @@
 #    Copyright 2002  The FreeRADIUS server project
 #    Copyright 2002  Boian Jordanov <bjordanov@orbitel.bg>
 #    Copyright 2011  LSE Leading Security Experts GmbH
+#    Copyright 2015  NetKnights GmbH <https://netknights.it>
 #
 #    E-mail: linotp@lsexperts.de
 #    Contact: www.linotp.org
@@ -156,7 +157,6 @@ perl(1).
 use strict;
 use LWP 6;
 use Config::IniFiles;
-use Data::Dump;
 use Try::Tiny;
 use JSON;
 use Time::HiRes qw( gettimeofday tv_interval );
@@ -434,9 +434,9 @@ sub authenticate {
         &radiusd::radlog( Info, "Warning: $@" );
     };
 
- 	&radiusd::radlog( Info, "Debugging config: ". $Config->{Debug});
-    	&radiusd::radlog( Info, "Verifying SSL certificate: ". $Config->{SSL_CHECK} );
-    	&radiusd::radlog( Info, "Default URL $URL " );
+    &radiusd::radlog( Info, "Debugging config: ". $Config->{Debug});
+    &radiusd::radlog( Info, "Verifying SSL certificate: ". $Config->{SSL_CHECK} );
+    &radiusd::radlog( Info, "Default URL $URL " );
 
     if ( $debug == true ) {
         &log_request_attributes;
@@ -463,7 +463,7 @@ sub authenticate {
         my $password = $RAD_REQUEST{'User-Password'};
         if ( $Config->{SPLIT_NULL_BYTE} =~ /true/i ) {
             my @p = split(/\0/, $password);
-            $password = @p[0];
+            $password = $p[0];
         }
         # Decode password (from <https://perldoc.perl.org/Encode::Guess#Encode::Guess-%3Eguess($data)>)
         my $decoder = Encode::Guess->guess($password);
@@ -491,7 +491,7 @@ sub authenticate {
         }
     }
 
-    # Security enhancement sned Message-Authenticator back
+    # Security enhancement send Message-Authenticator back
     if ( exists( $RAD_REQUEST{'Message-Authenticator'} )) {
         $RAD_REPLY{'Message-Authenticator'} = $RAD_REQUEST{'Message-Authenticator'};
     }
