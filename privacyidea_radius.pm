@@ -382,13 +382,10 @@ sub authenticate {
         $check_ssl = true;
     }
 
-
     my $timeout = $Config->{TIMEOUT};
-
 
     # if there exists an auth-type config may overwrite this
     my $auth_type = $RAD_CONFIG{"Auth-Type"};
-
     try {
         &radiusd::radlog( Info, "Looking for config for auth-type $auth_type");
         if ( ( $cfg_file->val( $auth_type, "URL") )) {
@@ -428,8 +425,6 @@ sub authenticate {
             $timeout = $cfg_file->val( $auth_type, "TIMEOUT" );
             &radiusd::radlog(Debug, "Overwriting TIMEOUT to ". $timeout ." based on auth-type: ". $auth_type);
         }
-
-
         if ( ( $cfg_file->val( $auth_type, "CLIENTATTRIBUTE") )) {
             $Config->{CLIENTATTRIBUTE} = $cfg_file->val( $auth_type, "CLIENTATTRIBUTE" );
             &radiusd::radlog(Debug, "Overwriting CLIENTATTRIBUTE to ". $Config->{CLIENTATTRIBUTE} ." based on auth-type: ". $auth_type);
@@ -440,11 +435,8 @@ sub authenticate {
     };
 
  	&radiusd::radlog( Info, "Debugging config: ". $Config->{Debug});
-
     	&radiusd::radlog( Info, "Verifying SSL certificate: ". $Config->{SSL_CHECK} );
-
     	&radiusd::radlog( Info, "Default URL $URL " );
-
 
     if ( $debug == true ) {
         &log_request_attributes;
