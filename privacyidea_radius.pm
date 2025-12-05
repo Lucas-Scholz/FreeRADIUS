@@ -223,18 +223,29 @@ use constant Acct  => 6;
 # }
 our $CONFIG_FILE = $RAD_PERLCONF{'configfile'};
 our @CONFIG_FILES = ("/etc/privacyidea/rlm_perl.ini", "/etc/freeradius/rlm_perl.ini", "/opt/privacyIDEA/rlm_perl.ini");
-
+our @CONFIG_VARIABLES = (
+    "DEBUG",
+    "URL",
+    "SSL_CHECK",
+    "SSL_CA_PATH",
+    "TIMEOUT", 
+    "REALM",
+    "RESOLVER",
+    "CLIENTATTRIBUTE",
+    "SPLIT_NULL_BYTE",
+    "ADD_EMPTY_PASS");
 
 our $Config = {};
 our $Mapping = {};
 our $cfg_file;
 
+# Set default configuration values
 $Config->{FSTAT} = "not found!";
 $Config->{URL}     = 'https://127.0.0.1/validate/check';
 $Config->{REALM}   = '';
 $Config->{CLIENTATTRIBUTE} = '';
 $Config->{RESOLVER} = "";
-$Config->{Debug}   = "FALSE";
+$Config->{DEBUG}   = "FALSE";
 $Config->{SSL_CHECK} = "FALSE";
 $Config->{TIMEOUT} = 10;
 $Config->{SPLIT_NULL_BYTE} = "FALSE";
@@ -244,21 +255,15 @@ if ($CONFIG_FILE) {
     @CONFIG_FILES = ($CONFIG_FILE);
 }
 
+# Overwrite configuration values from config file(s)
 foreach my $file (@CONFIG_FILES) {
     if (( -e $file )) {
         $cfg_file = Config::IniFiles->new( -file => $file);
         $CONFIG_FILE = $file;
         $Config->{FSTAT} = "found!";
-        $Config->{URL} = $cfg_file->val("Default", "URL");
-        $Config->{REALM}   = $cfg_file->val("Default", "REALM");
-        $Config->{RESOLVER} = $cfg_file->val("Default", "RESOLVER");
-        $Config->{Debug}   = $cfg_file->val("Default", "DEBUG");
-        $Config->{SPLIT_NULL_BYTE} = $cfg_file->val("Default", "SPLIT_NULL_BYTE");
-        $Config->{ADD_EMPTY_PASS} = $cfg_file->val("Default", "ADD_EMPTY_PASS");
-        $Config->{SSL_CHECK} = $cfg_file->val("Default", "SSL_CHECK");
-        $Config->{SSL_CA_PATH} = $cfg_file->val("Default", "SSL_CA_PATH");
-        $Config->{TIMEOUT} = $cfg_file->val("Default", "TIMEOUT", 10);
-        $Config->{CLIENTATTRIBUTE} = $cfg_file->val("Default", "CLIENTATTRIBUTE");
+        foreach ( @CONFIG_VARIABLES ) {
+            $Config->{$_} = $cfg_file->val("Default", $_);
+        }
     }
 }
 
@@ -360,20 +365,23 @@ sub authenticate {
     # in the module init we can't print this out, so it starts here
     &radiusd::radlog( Info, "Config File $CONFIG_FILE ".$Config->{FSTAT} );
 
-    # we inherrit the defaults
-    my $URL             = $Config->{URL};
-    my $REALM           = $Config->{REALM};
-    my $RESOLVER        = $Config->{RESOLVER};
-    my $DEBUG           = $Config->{DEBUG};
-    my $SPLIT_NULL_BYTE = $Config->{SPLIT_NULL_BYTE};
-    my $ADD_EMPTY_PASS  = $Config->{ADD_EMPTY_PASS};
-    my $SSL_CHECK       = $Config->{SSL_CHECK};
-    my $SSL_CA_PATH     = $Config->{SSL_CA_PATH};
-    my $TIMEOUT         = $Config->{TIMEOUT};
-    my $CLIENTATTRIBUTE = $Config->{CLIENTATTRIBUTE};
+    # if there exists an auth-type config may overwrite this
+    my $auth_type = $RAD_CONFIG{"Auth-Type"};
+    try {
+        &radiusd::radlog( Debug, "Looking for configuration for auth-type $auth_type");
+        foreach ( @CONFIG_VARIABLES ) {
+            if ( ( $cfg_file->val( $auth_type, $_) )) {
+                $Config->{$_} = $cfg_file->val( $auth_type, $_ );
+                &radiusd::radlog( Debug, "Overwriting $_ to ". $Config->{$_} ." based on auth-type: ". $auth_type);
+            }
+        }
+    }
+    catch {
+        &radiusd::radlog( Info, "Warning: $@" );
+    };
 
     my $debug   = false;
-    if ( $Config->{Debug} =~ /true/i ) {
+    if ( $Config->{DEBUG} =~ /true/i ) {
         $debug = true;
     }
    
@@ -382,63 +390,15 @@ sub authenticate {
         $check_ssl = true;
     }
 
-    my $timeout = $Config->{TIMEOUT};
-
-    # if there exists an auth-type config may overwrite this
-    my $auth_type = $RAD_CONFIG{"Auth-Type"};
-    try {
-        &radiusd::radlog( Info, "Looking for config for auth-type $auth_type");
-        if ( ( $cfg_file->val( $auth_type, "URL") )) {
-            $URL = $cfg_file->val( $auth_type, "URL" );
-            &radiusd::radlog( Debug, "Overwriting URL to ". $URL ." based on auth-type: ". $auth_type);
-        }
-        if ( ( $cfg_file->val( $auth_type, "REALM") )) {
-            $REALM = $cfg_file->val( $auth_type, "REALM" );
-            &radiusd::radlog( Debug, "Overwriting REALM to ". $REALM ." based on auth-type: ". $auth_type);
-        }
-        if ( ( $cfg_file->val( $auth_type, "RESOLVER") )) {
-            $RESOLVER = $cfg_file->val( $auth_type, "RESOLVER" );
-            &radiusd::radlog( Debug, "Overwriting RESOLVER to ". $RESOLVER ." based on auth-type: ". $auth_type);
-        }
-
-        if ( ( $cfg_file->val( $auth_type, "DEBUG") )) {
-            $debug = $cfg_file->val( $auth_type, "DEBUG" );
-            &radiusd::radlog( Debug, "Overwriting DEBUG to ". $debug ." based on auth-type: ". $auth_type);
-        }
-        if ( ( $cfg_file->val( $auth_type, "SPLIT_NULL_BYTE") )) {
-            $Config->{SPLIT_NULL_BYTE} = $cfg_file->val( $auth_type, "SPLIT_NULL_BYTE" );
-            &radiusd::radlog( Debug, "Overwriting SPLIT_NULL_BYTE to ". $Config->{SPLIT_NULL_BYTE} ." based on auth-type: ". $auth_type);
-        }
-        if ( ( $cfg_file->val( $auth_type, "ADD_EMPTY_PASS") )) {
-            $Config->{ADD_EMPTY_PASS} = $cfg_file->val( $auth_type, "ADD_EMPTY_PASS" );
-            &radiusd::radlog( Debug, "Overwriting ADD_EMPTY_PASS to ". $Config->{ADD_EMPTY_PASS} ." based on auth-type: ". $auth_type);
-        }
-        if ( ( $cfg_file->val( $auth_type, "SSL_CHECK") )) {
-            $check_ssl = $cfg_file->val( $auth_type, "SSL_CHECK" );
-            &radiusd::radlog( Debug, "Overwriting SSL_CHECK to ". $check_ssl ." based on auth-type: ". $auth_type);
-        }
-        if ( ( $cfg_file->val( $auth_type, "SSL_CA_PATH") )) {
-            $Config->{SSL_CA_PATH} = $cfg_file->val( $auth_type, "SSL_CA_PATH" );
-            &radiusd::radlog( Debug, "Overwriting SSL_CA_PATH to ". $Config->{SSL_CA_PATH} ." based on auth-type: ". $auth_type);
-        }
-        if ( ( $cfg_file->val( $auth_type, "TIMEOUT") )) {
-            $timeout = $cfg_file->val( $auth_type, "TIMEOUT" );
-            &radiusd::radlog( Debug, "Overwriting TIMEOUT to ". $timeout ." based on auth-type: ". $auth_type);
-        }
-        if ( ( $cfg_file->val( $auth_type, "CLIENTATTRIBUTE") )) {
-            $Config->{CLIENTATTRIBUTE} = $cfg_file->val( $auth_type, "CLIENTATTRIBUTE" );
-            &radiusd::radlog( Debug, "Overwriting CLIENTATTRIBUTE to ". $Config->{CLIENTATTRIBUTE} ." based on auth-type: ". $auth_type);
-        }
-    }
-    catch {
-        &radiusd::radlog( Info, "Warning: $@" );
-    };
-
-    &radiusd::radlog( Info, "Debugging config: ". $Config->{Debug});
+    # Log current configuration
+    &radiusd::radlog( Info, "Debugging: ". $Config->{Debug} );
     &radiusd::radlog( Info, "Verifying SSL certificate: ". $Config->{SSL_CHECK} );
-    &radiusd::radlog( Info, "Default URL $URL " );
+    &radiusd::radlog( Info, "URL: ". $Config->{URL} );
 
     if ( $debug == true ) {
+        foreach ( @CONFIG_VARIABLES ) {
+            &radiusd::radlog( Debug, "Config $_ = ". $Config->{$_} );
+        }
         &log_request_attributes;
     }
 
@@ -513,22 +473,21 @@ sub authenticate {
             &radiusd::radlog( Info, "Setting client IP to $params{'client'}." );
         }
     }
-    if ( length($REALM) > 0 ) {
-        $params{"realm"} = $REALM;
+    if ( length($Config->{REALM}) > 0 ) {
+        $params{"realm"} = $Config->{REALM};
     } elsif ( length($RAD_REQUEST{'Realm'}) > 0 ) {
         $params{"realm"} = $RAD_REQUEST{'Realm'};
     }
-    if ( length($RESOLVER) > 0 ) {
-        $params{"resolver"} = $RESOLVER;
+    if ( length($Config->{RESOLVER}) > 0 ) {
+        $params{"resolver"} = $Config->{RESOLVER};
     }
 
-    &radiusd::radlog( Info, "Auth-Type: $auth_type" );
-    &radiusd::radlog( Info, "url: $URL" );
     &radiusd::radlog( Info, "user sent to privacyidea: $params{'user'}" );
     &radiusd::radlog( Info, "realm sent to privacyidea: $params{'realm'}" );
     &radiusd::radlog( Info, "resolver sent to privacyidea: $params{'resolver'}" );
     &radiusd::radlog( Info, "client sent to privacyidea: $params{'client'}" );
     &radiusd::radlog( Info, "state sent to privacyidea: $params{'state'}" );
+
     if ( $debug == true ) {
         &radiusd::radlog( Debug, "urlparam $_ = $params{$_}\n" )
         for ( keys %params );
@@ -539,8 +498,8 @@ sub authenticate {
 
     my $ua = LWP::UserAgent->new();
     $ua->env_proxy;
-    $ua->timeout($timeout);
-    &radiusd::radlog( Info, "Request timeout: $timeout " );
+    $ua->timeout($Config->{TIMEOUT});
+    &radiusd::radlog( Info, "Request timeout: ". $Config->{TIMEOUT} );
     # Set the user-agent to be fetched in privacyIDEA Client Application Type
     $ua->agent("FreeRADIUS");
     if ($check_ssl == false) {
@@ -555,10 +514,10 @@ sub authenticate {
         try {
             &radiusd::radlog( Info, "Verifying SSL certificate!" );
             if ( exists( $Config->{SSL_CA_PATH} ) ) {
-                if ( length $SSL_CA_PATH ) {
-                    &radiusd::radlog( Info, "SSL_CA_PATH: $SSL_CA_PATH" );
+                if ( length $Config->{SSL_CA_PATH} ) {
+                    &radiusd::radlog( Info, "SSL_CA_PATH: ". $Config->{SSL_CA_PATH} );
                     $ua->ssl_opts(
-                        SSL_ca_path => $SSL_CA_PATH,
+                        SSL_ca_path => $Config->{SSL_CA_PATH},
                         verify_hostname => 1
                     );
                 }
@@ -576,7 +535,7 @@ sub authenticate {
     }
 
     my $starttime = [gettimeofday];
-    my $response = $ua->post( $URL, \%params );
+    my $response = $ua->post( $Config->{URL}, \%params );
     my $content  = $response->decoded_content();
     my $elapsedtime = tv_interval($starttime);
     &radiusd::radlog( Info, "elapsed time for privacyidea call: $elapsedtime" );
