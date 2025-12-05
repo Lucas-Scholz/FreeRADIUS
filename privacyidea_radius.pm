@@ -365,10 +365,10 @@ sub authenticate {
     # in the module init we can't print this out, so it starts here
     &radiusd::radlog( Info, "Config File $CONFIG_FILE ".$Config->{FSTAT} );
 
-    # if there exists an auth-type config may overwrite this
+    # If there exists an auth-type configuration it may overwrite the default config
     my $auth_type = $RAD_CONFIG{"Auth-Type"};
+    &radiusd::radlog( Debug, "Looking for extra configuration for auth-type '$auth_type'");
     try {
-        &radiusd::radlog( Debug, "Looking for configuration for auth-type $auth_type");
         foreach ( @CONFIG_VARIABLES ) {
             if ( ( $cfg_file->val( $auth_type, $_) )) {
                 $Config->{$_} = $cfg_file->val( $auth_type, $_ );
@@ -380,22 +380,20 @@ sub authenticate {
         &radiusd::radlog( Info, "Warning: $@" );
     };
 
-    my $debug   = false;
+    my $debug = 0;
     if ( $Config->{DEBUG} =~ /true/i ) {
-        $debug = true;
+        $debug = 1;
     }
    
-    my $check_ssl = false;
+    my $check_ssl = 0;
     if ( $Config->{SSL_CHECK} =~ /true/i ) {
-        $check_ssl = true;
+        $check_ssl = 1;
     }
 
-    # Log current configuration
-    &radiusd::radlog( Info, "Debugging: ". $Config->{Debug} );
-    &radiusd::radlog( Info, "Verifying SSL certificate: ". $Config->{SSL_CHECK} );
-    &radiusd::radlog( Info, "URL: ". $Config->{URL} );
+    &radiusd::radlog( Info, "Debugging: ". ($debug ? "Enabled" : "Off"));
 
-    if ( $debug == true ) {
+    if ( $debug ) {
+        # Log current configuration
         foreach ( @CONFIG_VARIABLES ) {
             &radiusd::radlog( Debug, "Config $_ = ". $Config->{$_} );
         }
@@ -431,7 +429,7 @@ sub authenticate {
             radiusd::radlog( Info, "Could not find valid password encoding. Sending password as-is." );
             radiusd::radlog( Debug, $decoder );
         } else {
-            &radiusd::radlog( Info, "Password encoding guessed: " . $decoder->name);
+            &radiusd::radlog( Info, "Password encoding: " . $decoder->name);
             $password = $decoder->decode($password);
         }
         $params{"pass"} = $password;
@@ -446,12 +444,12 @@ sub authenticate {
             radiusd::radlog( Info, "Could not find valid username encoding. Sending username as-is." );
             radiusd::radlog( Debug, $decoder );
         } else {
-            &radiusd::radlog( Info, "Username encoding guessed: " . $decoder->name);
+            &radiusd::radlog( Info, "Username encoding: " . $decoder->name);
             $params{"user"} = $decoder->decode($params{"user"});
         }
     }
 
-    # Security enhancement send Message-Authenticator back
+    # Security enhancement: add Message-Authenticator to reply. FreeRADIUS will calculate the final value
     if ( exists( $RAD_REQUEST{'Message-Authenticator'} )) {
         $RAD_REPLY{'Message-Authenticator'} = $RAD_REQUEST{'Message-Authenticator'};
     }
@@ -488,7 +486,7 @@ sub authenticate {
     &radiusd::radlog( Info, "client sent to privacyidea: $params{'client'}" );
     &radiusd::radlog( Info, "state sent to privacyidea: $params{'state'}" );
 
-    if ( $debug == true ) {
+    if ( $debug ) {
         &radiusd::radlog( Debug, "urlparam $_ = $params{$_}\n" )
         for ( keys %params );
     }
@@ -502,15 +500,7 @@ sub authenticate {
     &radiusd::radlog( Info, "Request timeout: ". $Config->{TIMEOUT} );
     # Set the user-agent to be fetched in privacyIDEA Client Application Type
     $ua->agent("FreeRADIUS");
-    if ($check_ssl == false) {
-        try {
-            # This is only availble with LWP version 6
-            &radiusd::radlog( Info, "Not verifying SSL certificate!" );
-            $ua->ssl_opts( verify_hostname => 0, SSL_verify_mode => 0x00 );
-        } catch {
-            &radiusd::radlog( Error, "ssl_opts only supported with LWP 6. error: $_" );
-        }
-    } else {
+    if ( $check_ssl ) {
         try {
             &radiusd::radlog( Info, "Verifying SSL certificate!" );
             if ( exists( $Config->{SSL_CA_PATH} ) ) {
@@ -529,8 +519,14 @@ sub authenticate {
             }
         }
         catch {
-            &radiusd::radlog( Error,
-                "Something went wrong setting up SSL certificate verification: $_" );
+            &radiusd::radlog( Error, "Error setting up SSL certificate verification: $_" );
+        }
+    } else {
+        try {
+            &radiusd::radlog( Info, "Not verifying SSL certificate!" );
+            $ua->ssl_opts( verify_hostname => 0, SSL_verify_mode => 0x00 );
+        } catch {
+            &radiusd::radlog( Error, "Error setting ssl_opts: $_" );
         }
     }
 
@@ -539,7 +535,7 @@ sub authenticate {
     my $content  = $response->decoded_content();
     my $elapsedtime = tv_interval($starttime);
     &radiusd::radlog( Info, "elapsed time for privacyidea call: $elapsedtime" );
-    if ( $debug == true ) {
+    if ( $debug ) {
         &radiusd::radlog( Debug, "Content $content" );
     }
     $RAD_REPLY{'Reply-Message'} = "privacyIDEA server denied access!";
@@ -549,6 +545,7 @@ sub authenticate {
         # This was NO OK 200 response
         my $status = $response->status_line;
         &radiusd::radlog( Info, "privacyIDEA request failed: $status" );
+        # TODO: We should not include the error message in the response or at least make it configurable
         $RAD_REPLY{'Reply-Message'} = "privacyIDEA request failed: $status";
         $g_return = RLM_MODULE_FAIL;
     }
@@ -579,7 +576,7 @@ sub authenticate {
                 %RAD_REPLY = ( %RAD_REPLY, mapResponse($decoded));
                 $g_return  = RLM_MODULE_HANDLED;
             } else {
-                &radiusd::radlog( Info, "privacyIDEA access denied for $params{'user'} realm='$params{'realm'}'" );
+                &radiusd::radlog( Info, "privacyIDEA access denied for user=$params{'user'} realm='$params{'realm'}'" );
                 #$RAD_REPLY{'Reply-Message'} = "privacyIDEA access denied";
                 $g_return = RLM_MODULE_REJECT;
             }
@@ -587,6 +584,7 @@ sub authenticate {
         elsif ( !$decoded->{result}{status}) {
             # An internal error occurred. We use the original return value RLM_MODULE_FAIL
             &radiusd::radlog( Info, "privacyIDEA Result status is false!" );
+            # TODO: We should not include the error message in the response or at least make it configurable
             $RAD_REPLY{'Reply-Message'} = $decoded->{result}{error}{message};
             &radiusd::radlog( Info, $decoded->{result}{error}{message});
             my $errorcode = $decoded->{result}{error}{code};
