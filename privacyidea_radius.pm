@@ -233,7 +233,7 @@ $Config->{FSTAT} = "not found!";
 $Config->{URL}     = 'https://127.0.0.1/validate/check';
 $Config->{REALM}   = '';
 $Config->{CLIENTATTRIBUTE} = '';
-$Config->{RESCONF} = "";
+$Config->{RESOLVER} = "";
 $Config->{Debug}   = "FALSE";
 $Config->{SSL_CHECK} = "FALSE";
 $Config->{TIMEOUT} = 10;
@@ -251,7 +251,7 @@ foreach my $file (@CONFIG_FILES) {
         $Config->{FSTAT} = "found!";
         $Config->{URL} = $cfg_file->val("Default", "URL");
         $Config->{REALM}   = $cfg_file->val("Default", "REALM");
-        $Config->{RESCONF} = $cfg_file->val("Default", "RESCONF");
+        $Config->{RESOLVER} = $cfg_file->val("Default", "RESOLVER");
         $Config->{Debug}   = $cfg_file->val("Default", "DEBUG");
         $Config->{SPLIT_NULL_BYTE} = $cfg_file->val("Default", "SPLIT_NULL_BYTE");
         $Config->{ADD_EMPTY_PASS} = $cfg_file->val("Default", "ADD_EMPTY_PASS");
@@ -262,7 +262,7 @@ foreach my $file (@CONFIG_FILES) {
     }
 }
 
-sub add_reply_attibute {
+sub add_reply_attribute {
 
     my $radReply = shift;
     my $newValue = shift;
@@ -297,7 +297,7 @@ sub mapResponse {
                         my $radiusAttribute = $cfg_file->val($member, $key);
                         &radiusd::radlog( Info, "++++++ Map: $topnode : $key -> $radiusAttribute");
                         my $newValue = $decoded->{detail}{$topnode}{$key};
-                        $radReply{$radiusAttribute} = add_reply_attibute($radReply{$radiusAttribute}, $newValue);
+                        $radReply{$radiusAttribute} = add_reply_attribute($radReply{$radiusAttribute}, $newValue);
                     };
                 }
                 if ($group eq "Attribute") {
@@ -334,7 +334,7 @@ sub mapResponse {
                         &radiusd::radlog(Info, "+++++++ trying to match $value");
                         if ($value =~ /$regex/) {
                             my $result = $1;
-                            $radReply{$radiusAttribute} = add_reply_attibute($radReply{$radiusAttribute}, "$prefix$result$suffix");
+                            $radReply{$radiusAttribute} = add_reply_attribute($radReply{$radiusAttribute}, "$prefix$result$suffix");
                             &radiusd::radlog(Info, "++++++++ Result: Add RADIUS attribute $radiusAttribute = $prefix$result$suffix");
                         } else {
                             &radiusd::radlog(Info, "++++++++ Result: No match, no RADIUS attribute $radiusAttribute added.");
@@ -347,7 +347,7 @@ sub mapResponse {
         foreach my $key ($cfg_file->Parameters("Mapping")) {
             my $radiusAttribute = $cfg_file->val("Mapping", $key);
             &radiusd::radlog( Info, "+++ Map: $key -> $radiusAttribute");
-            $radReply{$radiusAttribute} = add_reply_attibute($radReply{$radiusAttribute}, $decoded->{detail}{$key});
+            $radReply{$radiusAttribute} = add_reply_attribute($radReply{$radiusAttribute}, $decoded->{detail}{$key});
         }
     }
     return %radReply;
@@ -363,7 +363,7 @@ sub authenticate {
     # we inherrit the defaults
     my $URL             = $Config->{URL};
     my $REALM           = $Config->{REALM};
-    my $RESCONF         = $Config->{RESCONF};
+    my $RESOLVER        = $Config->{RESOLVER};
     my $DEBUG           = $Config->{DEBUG};
     my $SPLIT_NULL_BYTE = $Config->{SPLIT_NULL_BYTE};
     my $ADD_EMPTY_PASS  = $Config->{ADD_EMPTY_PASS};
@@ -390,44 +390,44 @@ sub authenticate {
         &radiusd::radlog( Info, "Looking for config for auth-type $auth_type");
         if ( ( $cfg_file->val( $auth_type, "URL") )) {
             $URL = $cfg_file->val( $auth_type, "URL" );
-            &radiusd::radlog(Debug, "Overwriting URL to ". $URL ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting URL to ". $URL ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "REALM") )) {
             $REALM = $cfg_file->val( $auth_type, "REALM" );
-            &radiusd::radlog(Debug, "Overwriting REALM to ". $REALM ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting REALM to ". $REALM ." based on auth-type: ". $auth_type);
         }
-        if ( ( $cfg_file->val( $auth_type, "RESCONF") )) {
-            $RESCONF = $cfg_file->val( $auth_type, "RESCONF" );
-            &radiusd::radlog(Debug, "Overwriting RESCONF to ". $RESCONF ." based on auth-type: ". $auth_type);
+        if ( ( $cfg_file->val( $auth_type, "RESOLVER") )) {
+            $RESOLVER = $cfg_file->val( $auth_type, "RESOLVER" );
+            &radiusd::radlog( Debug, "Overwriting RESOLVER to ". $RESOLVER ." based on auth-type: ". $auth_type);
         }
 
         if ( ( $cfg_file->val( $auth_type, "DEBUG") )) {
             $debug = $cfg_file->val( $auth_type, "DEBUG" );
-            &radiusd::radlog(Debug, "Overwriting DEBUG to ". $debug ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting DEBUG to ". $debug ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "SPLIT_NULL_BYTE") )) {
             $Config->{SPLIT_NULL_BYTE} = $cfg_file->val( $auth_type, "SPLIT_NULL_BYTE" );
-            &radiusd::radlog(Debug, "Overwriting SPLIT_NULL_BYTE to ". $Config->{SPLIT_NULL_BYTE} ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting SPLIT_NULL_BYTE to ". $Config->{SPLIT_NULL_BYTE} ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "ADD_EMPTY_PASS") )) {
             $Config->{ADD_EMPTY_PASS} = $cfg_file->val( $auth_type, "ADD_EMPTY_PASS" );
-            &radiusd::radlog(Debug, "Overwriting ADD_EMPTY_PASS to ". $Config->{ADD_EMPTY_PASS} ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting ADD_EMPTY_PASS to ". $Config->{ADD_EMPTY_PASS} ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "SSL_CHECK") )) {
             $check_ssl = $cfg_file->val( $auth_type, "SSL_CHECK" );
-            &radiusd::radlog(Debug, "Overwriting SSL_CHECK to ". $check_ssl ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting SSL_CHECK to ". $check_ssl ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "SSL_CA_PATH") )) {
             $Config->{SSL_CA_PATH} = $cfg_file->val( $auth_type, "SSL_CA_PATH" );
-            &radiusd::radlog(Debug, "Overwriting SSL_CA_PATH to ". $Config->{SSL_CA_PATH} ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting SSL_CA_PATH to ". $Config->{SSL_CA_PATH} ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "TIMEOUT") )) {
             $timeout = $cfg_file->val( $auth_type, "TIMEOUT" );
-            &radiusd::radlog(Debug, "Overwriting TIMEOUT to ". $timeout ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting TIMEOUT to ". $timeout ." based on auth-type: ". $auth_type);
         }
         if ( ( $cfg_file->val( $auth_type, "CLIENTATTRIBUTE") )) {
             $Config->{CLIENTATTRIBUTE} = $cfg_file->val( $auth_type, "CLIENTATTRIBUTE" );
-            &radiusd::radlog(Debug, "Overwriting CLIENTATTRIBUTE to ". $Config->{CLIENTATTRIBUTE} ." based on auth-type: ". $auth_type);
+            &radiusd::radlog( Debug, "Overwriting CLIENTATTRIBUTE to ". $Config->{CLIENTATTRIBUTE} ." based on auth-type: ". $auth_type);
         }
     }
     catch {
@@ -518,15 +518,15 @@ sub authenticate {
     } elsif ( length($RAD_REQUEST{'Realm'}) > 0 ) {
         $params{"realm"} = $RAD_REQUEST{'Realm'};
     }
-    if ( length($RESCONF) > 0 ) {
-        $params{"resConf"} = $RESCONF;
+    if ( length($RESOLVER) > 0 ) {
+        $params{"resolver"} = $RESOLVER;
     }
 
     &radiusd::radlog( Info, "Auth-Type: $auth_type" );
     &radiusd::radlog( Info, "url: $URL" );
     &radiusd::radlog( Info, "user sent to privacyidea: $params{'user'}" );
     &radiusd::radlog( Info, "realm sent to privacyidea: $params{'realm'}" );
-    &radiusd::radlog( Info, "resolver sent to privacyidea: $params{'resConf'}" );
+    &radiusd::radlog( Info, "resolver sent to privacyidea: $params{'resolver'}" );
     &radiusd::radlog( Info, "client sent to privacyidea: $params{'client'}" );
     &radiusd::radlog( Info, "state sent to privacyidea: $params{'state'}" );
     if ( $debug == true ) {
