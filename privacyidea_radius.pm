@@ -64,9 +64,6 @@
 #    Contact: www.linotp.org
 #    Support: www.lsexperts.de
 
-
-
-
 #
 # Based on the Example code for use with rlm_perl
 #
@@ -160,21 +157,12 @@ use Config::IniFiles;
 use Try::Tiny;
 use JSON;
 use Time::HiRes qw( gettimeofday tv_interval );
+use URI;
 use URI::Encode;
 use Encode::Guess;
 
-
-# use ...
 # This is very important ! Without this script will not get the filled hashes from main.
 use vars qw(%RAD_REQUEST %RAD_REPLY %RAD_CHECK %RAD_CONFIG %RAD_PERLCONF);
-
-# This is hash wich hold original request from radius
-#my %RAD_REQUEST;
-# In this hash you add values that will be returned to NAS.
-#my %RAD_REPLY;
-#This is for check items
-#my %RAD_CHECK;
-
 
 # constant definition for the remapping of return values
 use constant RLM_MODULE_REJECT  =>  0; #  /* immediately reject the request */
@@ -187,6 +175,8 @@ use constant RLM_MODULE_NOTFOUND => 6; #  /* user not found */
 use constant RLM_MODULE_NOOP     => 7; #  /* module succeeded without doing anything */
 use constant RLM_MODULE_UPDATED  => 8; #  /* OK (pairs modified) */
 use constant RLM_MODULE_NUMCODES => 9; #  /* How many return codes there are */
+
+our $VERSION = '3.5';
 
 our $ret_hash = {
     0 => "RLM_MODULE_REJECT",
@@ -254,7 +244,6 @@ $Config->{ADD_EMPTY_PASS} = "FALSE";
 if ($CONFIG_FILE) {
     @CONFIG_FILES = ($CONFIG_FILE);
 }
-
 # Overwrite configuration values from config file(s)
 foreach my $file (@CONFIG_FILES) {
     if (( -e $file )) {
@@ -262,7 +251,7 @@ foreach my $file (@CONFIG_FILES) {
         $CONFIG_FILE = $file;
         $Config->{FSTAT} = "found!";
         foreach ( @CONFIG_VARIABLES ) {
-            $Config->{$_} = $cfg_file->val("Default", $_);
+            $Config->{$_} = $cfg_file->val("Default", $_, $Config->{$_});
         }
     }
 }
@@ -360,7 +349,6 @@ sub mapResponse {
 
 # Function to handle authenticate
 sub authenticate {
-
     ## show where the config comes from -
     # in the module init we can't print this out, so it starts here
     &radiusd::radlog( Info, "Config File $CONFIG_FILE ".$Config->{FSTAT} );
@@ -369,10 +357,12 @@ sub authenticate {
     my $auth_type = $RAD_CONFIG{"Auth-Type"};
     &radiusd::radlog( Debug, "Looking for extra configuration for auth-type '$auth_type'");
     try {
-        foreach ( @CONFIG_VARIABLES ) {
-            if ( ( $cfg_file->val( $auth_type, $_) )) {
-                $Config->{$_} = $cfg_file->val( $auth_type, $_ );
-                &radiusd::radlog( Debug, "Overwriting $_ to ". $Config->{$_} ." based on auth-type: ". $auth_type);
+        if ( $cfg_file->SectionExists( $auth_type ) ) {
+            foreach ( @CONFIG_VARIABLES ) {
+                if ( ( $cfg_file->exists( $auth_type, $_) )) {
+                    $Config->{$_} = $cfg_file->val( $auth_type, $_ );
+                    &radiusd::radlog( Debug, "Overwriting $_ to ". $Config->{$_} ." based on auth-type: ". $auth_type);
+                }
             }
         }
     }
@@ -380,14 +370,14 @@ sub authenticate {
         &radiusd::radlog( Info, "Warning: $@" );
     };
 
-    my $debug = 0;
+    my $debug = false;
     if ( $Config->{DEBUG} =~ /true/i ) {
-        $debug = 1;
+        $debug = true;
     }
-   
-    my $check_ssl = 0;
+
+    my $check_ssl = false;
     if ( $Config->{SSL_CHECK} =~ /true/i ) {
-        $check_ssl = 1;
+        $check_ssl = true;
     }
 
     &radiusd::radlog( Info, "Debugging: ". ($debug ? "Enabled" : "Off"));
@@ -494,12 +484,15 @@ sub authenticate {
         &radiusd::radlog( Info, "urlparam $_ \n" ) for ( keys %params );
     }
 
-    my $ua = LWP::UserAgent->new();
+    my $ua = LWP::UserAgent->new;
     $ua->env_proxy;
+    my $url = URI->new($Config->{URL})->canonical;
+    &radiusd::radlog( Info, "Request URL: ". $url );
     $ua->timeout($Config->{TIMEOUT});
-    &radiusd::radlog( Info, "Request timeout: ". $Config->{TIMEOUT} );
+    &radiusd::radlog( Info, "Request timeout: $Config->{TIMEOUT}" );
+
     # Set the user-agent to be fetched in privacyIDEA Client Application Type
-    $ua->agent("FreeRADIUS");
+    $ua->agent("FreeRADIUS/". $VERSION);
     if ( $check_ssl ) {
         try {
             &radiusd::radlog( Info, "Verifying SSL certificate!" );
@@ -531,7 +524,7 @@ sub authenticate {
     }
 
     my $starttime = [gettimeofday];
-    my $response = $ua->post( $Config->{URL}, \%params );
+    my $response = $ua->post( $url, \%params );
     my $content  = $response->decoded_content();
     my $elapsedtime = tv_interval($starttime);
     &radiusd::radlog( Info, "elapsed time for privacyidea call: $elapsedtime" );
@@ -550,8 +543,8 @@ sub authenticate {
         $g_return = RLM_MODULE_FAIL;
     }
     try {
-        my $coder = JSON->new->ascii->pretty->allow_nonref;
-        my $decoded = $coder->decode($content);
+        my $decoder = JSON->new->allow_nonref;
+        my $decoded = $decoder->decode($content);
         my $message = $decoded->{detail}{message};
         if ( $decoded->{result}{value} ) {
             &radiusd::radlog( Info, "privacyIDEA access granted for $params{'user'} realm='$params{'realm'}'" );
@@ -716,7 +709,6 @@ sub detach {
 #
 
 sub test_call {
-
     # Some code goes here
 }
 
